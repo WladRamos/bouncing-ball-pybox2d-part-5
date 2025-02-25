@@ -4,27 +4,36 @@ from Ball import Ball
 from Ring import Ring
 from Sounds import sounds
 from utils import utils
+import random
 
 
 class Game:
     def __init__(self):
-        self.center = Vector2(utils.width/2,utils.height/2)
-        self.ball =  Ball(Vector2(utils.width / 2, utils.height / 2), 1, (255, 255, 255))
+        self.center = Vector2(utils.width / 2, utils.height / 2)
+        self.ball = Ball(Vector2(utils.width / 2, utils.height / 2), 1, (255, 255, 255))
         self.particles = []
-        self.rings = [
-
-        ]
+        self.rings = []
 
         radius = 5
         numRings = 16
-        rotateSpeed = 1
-        hue = 0
+        rotateSpeed = 0.5
+
+        # **Decidir aleatoriamente se as cores mudam com o tempo ou permanecem fixas**
+        self.dynamic_colors = random.choice([True, False])
+
+        # **Definir cores iniciais e finais aleatórias**
+        self.start_hue = random.random()  # Matiz inicial aleatória (0 a 1)
+        self.end_hue = random.random()  # Matiz final aleatória (0 a 1)
+
         for i in range(numRings):
-            ring = Ring(self.center, radius, rotateSpeed, 50,hue)
+            # **Interpolação do matiz (hue)**
+            hue = self.start_hue + (self.end_hue - self.start_hue) * (i / numRings)
+            hue = hue % 1  # Garante que esteja no intervalo válido de matiz (0 a 1)
+
+            ring = Ring(self.center, radius, rotateSpeed, 50, hue, self.dynamic_colors)
 
             radius += 1.4
-            rotateSpeed *= 1.2
-            hue += 1/numRings
+            rotateSpeed *= 1.1
 
             self.rings.append(ring)
 

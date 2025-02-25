@@ -10,13 +10,15 @@ from utils import utils
 
 
 class Ring:
-    def __init__(self, pos, radius,rotateDir,size,hue):
-        self.color = (255,255,255)
+    def __init__(self, pos, radius, rotateDir, size, hue, dynamic_colors):
+        self.color = (255, 255, 255)
         self.radius = radius
-
         self.rotateDir = rotateDir
         self.size = size
         self.vertices = []
+        self.dynamic_colors = dynamic_colors  # Define se a cor muda com o tempo
+        self.hue = hue  # Define a cor inicial
+
         for i in range(self.size):
             angle = i * (2 * math.pi / self.size)
             x = radius * math.cos(angle)
@@ -27,9 +29,8 @@ class Ring:
         self.body.userData = self
 
         self.create_edge_shape()
-        self.hue = hue
-
         self.destroyFlag = False
+
 
 
     def create_edge_shape(self):
@@ -65,12 +66,17 @@ class Ring:
 
 
     def draw(self):
-        self.hue = (self.hue + utils.deltaTime()/5) % 1
+        # **Se as cores forem dinâmicas, elas mudam com o tempo**
+        if self.dynamic_colors:
+            self.hue = (self.hue + utils.deltaTime() / 5) % 1
+        
+        # Atualiza a cor com base no matiz (hue)
         self.color = utils.hueToRGB(self.hue)
 
+        # Gira os anéis
         self.body.angle += self.rotateDir * utils.deltaTime()
 
-
+        # Desenha as bordas
         self.draw_edges()
 
     def draw_edges(self):
@@ -82,11 +88,11 @@ class Ring:
 
     def spawParticles(self):
         particles = []
-        center = Vector2(utils.width/2,utils.height/2)
-        for i in range(0,360,5):
+        center = Vector2(utils.width / 2, utils.height / 2)
+        for i in range(0, 360, 5):
             x = math.cos(math.radians(i)) * self.radius * 10
             y = math.sin(math.radians(i)) * self.radius * 10
-            pos = center + Vector2(x,y)
-            exp = Explosion(pos.x,pos.y,self.color)
+            pos = center + Vector2(x, y)
+            exp = Explosion(pos.x, pos.y, self.color)
             particles.append(exp)
         return particles
