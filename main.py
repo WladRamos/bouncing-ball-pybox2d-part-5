@@ -3,21 +3,43 @@ import cv2
 import numpy as np
 import subprocess
 import os
-
+import time
 from Game import Game
 from utils import utils
 
 # Configuração do Pygame
 game = Game()
+pygame.mixer.init()  # Inicia o mixer para capturar o áudio do Pygame
 
 # Configuração do OpenCV para gravar vídeo
-fps = 60  # Ajuste para a taxa de quadros desejada
+fps = 40
 video_filename_avi = "output.avi"
 video_filename_mp4 = "output.mp4"
-fourcc = cv2.VideoWriter_fourcc(*"XVID")  # Codec de vídeo
+fourcc = cv2.VideoWriter_fourcc(*"XVID")
 out = cv2.VideoWriter(video_filename_avi, fourcc, fps, (utils.width, utils.height))
 
-recording = True  # Alterne para False se não quiser gravar
+recording = True
+
+# Configuração do áudio usando FFmpeg
+audio_filename = "output_audio.wav"
+
+# Definir comando do FFmpeg para capturar áudio do sistema corretamente
+if os.name == "nt":  # Windows
+    ffmpeg_command = [
+        "ffmpeg", "-y", "-f", "dshow", "-i", "audio=Mixagem estéreo (Realtek High Definition Audio)", 
+        "-acodec", "pcm_s16le", "-ar", "44100", "-ac", "2", audio_filename
+    ]
+elif os.name == "posix":  # Linux/macOS
+    ffmpeg_command = [
+        "ffmpeg", "-y", "-f", "pulse", "-i", "default", 
+        "-acodec", "pcm_s16le", "-ar", "44100", "-ac", "2", audio_filename
+    ]
+
+# Iniciar a gravação de áudio em um subprocesso separado (novo grupo de processo)
+if os.name == "nt":  # Windows
+    audio_process = subprocess.Popen(ffmpeg_command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, creationflags=subprocess.CREATE_NEW_PROCESS_GROUP)
+else:
+    audio_process = subprocess.Popen(ffmpeg_command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 while True:
     utils.screen.fill((23, 23, 23), (0, 0, utils.width, utils.height))
@@ -25,26 +47,36 @@ while True:
 
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
-            out.release()  # Libera o vídeo antes de sair
+            recording = False  # Para a gravação de áudio
+
+            # Finaliza a gravação de áudio corretamente
+            print("⏹️ Finalizando gravação de áudio...")
+
+            # Se o FFmpeg ainda estiver rodando, mate o processo
+            if os.name == "nt":  # Windows
+                subprocess.run(["taskkill", "/F", "/T", "/PID", str(audio_process.pid)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            else:
+                audio_process.terminate()
+                time.sleep(1)  # Aguarda um pouco para garantir que ele finalize
+                if audio_process.poll() is None:  # Se ainda estiver rodando, encerra à força
+                    audio_process.kill()
+                audio_process.wait()  # Aguarda a finalização completa
+            
+            print(f"✅ Áudio salvo como {audio_filename}")
+
+            # Libera o vídeo
+            out.release()
             pygame.quit()
             
-            # Converte para MP4 após fechar o jogo
+            # Converte o vídeo para MP4 sem juntar com o áudio
             print("🔄 Convertendo vídeo para MP4...")
-            try:
-                result = subprocess.run(
-                    ["ffmpeg", "-i", video_filename_avi, "-vcodec", "libx264", "-crf", "23", video_filename_mp4],
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    text=True,
-                    check=True
-                )
-                print(result.stdout)  # Exibe a saída do FFmpeg no terminal
-                os.remove(video_filename_avi)  # Remove o AVI após a conversão
-                print(f"✅ Vídeo salvo como {video_filename_mp4}")
+            os.system(f"ffmpeg -y -i {video_filename_avi} -vcodec libx264 -crf 23 {video_filename_mp4}")
+            print(f"✅ Vídeo salvo como {video_filename_mp4}")
 
-            except subprocess.CalledProcessError as e:
-                print(f"⚠️ Erro ao converter o vídeo: {e.stderr}")
-                print("Certifique-se de que o FFmpeg está instalado e disponível no PATH.")
+            print("\n🎬 Os arquivos foram gerados separadamente:")
+            print(f"📂 Vídeo: {video_filename_mp4}")
+            print(f"📂 Áudio: {audio_filename}")
+            print("🎵 Agora você pode combinar o áudio e o vídeo manualmente em um editor de vídeo.")
 
             exit(0)
 
@@ -53,15 +85,13 @@ while True:
 
     # Captura o frame da tela do Pygame
     frame = pygame.surfarray.array3d(utils.screen)
-    frame = np.rot90(frame)  # Corrige a rotação da imagem
-    frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)  # Converte para formato BGR do OpenCV
+    frame = np.rot90(frame)
+    frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
 
-    # Grava o frame no vídeo
     if recording:
         out.write(frame)
 
     pygame.display.flip()
 
-# Libera os recursos do OpenCV quando terminar
 out.release()
 pygame.quit()
